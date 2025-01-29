@@ -28,24 +28,22 @@ def extract_date_from_string(text):
 
     # Return the found dates
     return dates
-
-for page in range(100):
-    page +=1
-    data_page = {
+data_page = {
         'name': [],
         'rank': [],
-        'rate': [],
+        # 'rate': [],
         'platform': [],
         'r-date': [],
         'score': [],
-        'user score': [],
-        'developer': [],
-        'genre': [],
-        'players': [],
-        'critics': [],
-        'users': []
+       # 'users':   # 'user score': [],
+    #         # 'developer': [],
+    #         # 'genre': [],
+    #         # 'players': [],
+    #         # 'critics': [],
+    #        []
     }
-
+for page in range(100):
+    page +=1
     # Site inside metacritic listing "Game Releases by Score"
     # url = 'https://www.metacritic.com/browse/games/score/metascore/all/all/filtered?page=' + str(page)
     url = f'https://www.metacritic.com/browse/game/{platform}/all/all-time/metascore/?releaseYearMin=1958&releaseYearMax=2024&platform=ps4&page={page}'
@@ -56,21 +54,29 @@ for page in range(100):
 
     # Printing out current page
     print(50 * '=', "In page: ", page)
-    soup.find_all('div', {'class': 'c-finderProductCard'})[2].text
+
     # Loop through all games in current page
     for game in soup.find_all('div', {'class': 'c-finderProductCard'}):
-        # Name
-        data_page['name'].append(game.text.split('\n')[0].split('. ')[-1])
-        data_page['rank'].append(game.text.split('\n')[0].split('. ')[0])
-        print(data_page['name'][-1])
-        if data_page['name']=='Injustice 2: Legendary Edition':
-            print('stop here')
 
+        # Name
+        game_name=game.text.split('\n')[0].split('. ')[-1]
+        data_page['name'].append(game_name)
+        data_page['rank'].append(game.text.split('\n')[0].split('. ')[0])
         data_page['platform'].append(platform)
         data_page['r-date'].append(extract_date_from_string(game.text))
         data_page['score'].append(game.text.split('\n')[-1].split(' Metascore')[0].split(' ')[-1])
 
+        name_nospaces =game_name.strip().replace(' ','-').lower()
+        game_url = f'https://www.metacritic.com/game/{name_nospaces}/critic-reviews/?platform=playstation-4'
 
+        user_agent = {'User-agent': 'Mozilla/5.0'}
+        response_game = requests.get(game_url, headers=user_agent)
+        soup_game = BeautifulSoup(response_game.text, 'html.parser')
+
+
+        print(data_page)
+        for game in soup_game.find_all('div', {'class': 'tagstack'}):
+            print(game)
 #         # Release date
 #         data_page['r-date'].append(game.select('div.clamp-details span')[2].text)
 #
@@ -209,6 +215,7 @@ for page in range(100):
 # df_ultimate.index = range(len(df_ultimate))
 #
 # df_ultimate.to_csv('games-data.csv',index=False)
-summary_data=pd.DataFrame.from_dict(data_page)
 
+summary_data = pd.DataFrame.from_dict(data_page)
+print(summary_data.head(30))
 summary_data.to_csv(f'summary_data_{platform}.csv')
