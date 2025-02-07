@@ -16,6 +16,9 @@ from dateutil.parser import parse
 import re
 import requests
 import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 pages = {}
 platform = "ps4"
 
@@ -36,8 +39,19 @@ def scrape_reviews(url, headers, max_pages=3):
     # for page in range(1, max_pages * 100, 100):  # Metacritic paginates in steps of 100
     full_url = f"{url}"  # Pagination
     print(f"Scraping: {full_url}")
+    # Set up Selenium WebDriver
+    driver = webdriver.Chrome()  # Use the correct driver for your browser  # Example URL
+    driver.get(full_url)
 
-    response = requests.get(full_url, headers=headers)
+    # Scroll to load more reviews (adjust range if needed)
+    for _ in range(10):  # Scroll 10 times (adjust as needed)
+        driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
+        time.sleep(2)  # Wait for reviews to load
+
+    # Get page source after scrolling
+    html = driver.page_source
+    driver.quit()  # Close the browser
+    response = BeautifulSoup(html, "html.parser")
     if response.status_code != 200:
         print(f"Error {response.status_code}: Unable to access {full_url}")
 
