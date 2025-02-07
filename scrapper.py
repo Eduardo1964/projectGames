@@ -15,8 +15,88 @@ from bs4 import BeautifulSoup
 from dateutil.parser import parse
 import re
 import requests
+import time
 pages = {}
 platform = "ps4"
+
+def extract_date_from_string(text):
+    # Define a regular expression pattern to match dates
+    date_pattern = r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}\b'  # Matches Month DD, YYYY format
+
+    # Search for dates in the text using the regular expression
+    dates = re.findall(date_pattern, text)
+
+    # Return the found dates
+    return dates
+
+
+def scrape_reviews(url, headers, max_pages=3):
+    reviews = {}
+
+    # for page in range(1, max_pages * 100, 100):  # Metacritic paginates in steps of 100
+    full_url = f"{url}"  # Pagination
+    print(f"Scraping: {full_url}")
+
+    response = requests.get(full_url, headers=headers)
+    if response.status_code != 200:
+        print(f"Error {response.status_code}: Unable to access {full_url}")
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Find all review containers
+    review_containers = soup.find('script', text=re.compile('window.__NUXT__')).text
+
+    # Regular expression to match everything after "CriticSummary:" and between { and }
+    pattern = r"criticScoreSummary:.*?,publicationSlug:"
+    # Search for the pattern
+    matches = re.findall(pattern, review_containers)
+
+    for match in matches:
+        import ast
+        pattern = r'(\w+):("(?:\\.|[^"])*"|[-\w.]+)'
+
+        # Find all matches
+        review_pairs = re.findall(pattern, match)
+        parsed_dict = {}
+        for key, value in review_pairs:
+        # Convert "null" and boolean values
+            if value == "null":
+                value = None
+            elif value == "true":
+                value = True
+            elif value == "false":
+                value = False
+            elif value.isdigit():  # Convert numbers
+                value = int(value)
+            elif re.match(r'^-?\d+\.\d+$', value):  # Convert float numbers
+                value = float(value)
+            elif value.startswith('"') and value.endswith('"'):  # Convert strings
+                value = ast.literal_eval(value)  # Safely evaluate escaped string
+
+            parsed_dict[key] = value
+        reviewer = parsed_dict['publicationName']
+        reviews[reviewer] = parsed_dict
+
+    #TODO retrieving expected data as a dictionary to convert to a dataframe
+    time.sleep(2)  # Sleep to prevent getting blocked
+    reviews = pd.DataFrame.from_dict(reviews)
+    return reviews
+
+
+def html_to_dict(html):
+    soup = BeautifulSoup(html, "html.parser")
+
+    def element_to_dict(element):
+        """Recursively convert HTML element to dictionary."""
+        tag_dict = {
+            "name": element.name,
+            "attrs": element.attrs,
+            "text": element.text.strip() if element.text else "",
+            "children": [element_to_dict(child) for child in element.find_all(recursive=False)]
+        }
+        return tag_dict
+
+    return element_to_dict(soup.html)
 
 
 def extract_date_from_string(text):
@@ -42,41 +122,43 @@ data_page = {
     #         # 'critics': [],
     #        []
     }
-for page in range(100):
-    page +=1
-    # Site inside metacritic listing "Game Releases by Score"
-    # url = 'https://www.metacritic.com/browse/games/score/metascore/all/all/filtered?page=' + str(page)
-    url = f'https://www.metacritic.com/browse/game/{platform}/all/all-time/metascore/?releaseYearMin=1958&releaseYearMax=2024&platform=ps4&page={page}'
-
-    user_agent = {'User-agent': 'Mozilla/5.0'}
-    response = requests.get(url, headers=user_agent)
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    # Printing out current page
-    print(50 * '=', "In page: ", page)
-
-    # Loop through all games in current page
-    for game in soup.find_all('div', {'class': 'c-finderProductCard'}):
-
-        # Name
-        game_name=game.text.split('\n')[0].split('. ')[-1]
-        data_page['name'].append(game_name)
-        data_page['rank'].append(game.text.split('\n')[0].split('. ')[0])
-        data_page['platform'].append(platform)
-        data_page['r-date'].append(extract_date_from_string(game.text))
-        data_page['score'].append(game.text.split('\n')[-1].split(' Metascore')[0].split(' ')[-1])
-
-        name_nospaces =game_name.strip().replace(' ','-').lower()
-        game_url = f'https://www.metacritic.com/game/{name_nospaces}/critic-reviews/?platform=playstation-4'
-
-        user_agent = {'User-agent': 'Mozilla/5.0'}
-        response_game = requests.get(game_url, headers=user_agent)
-        soup_game = BeautifulSoup(response_game.text, 'html.parser')
-
-
-        print(data_page)
-        for game in soup_game.find_all('div', {'class': 'tagstack'}):
-            print(game)
+# for page in range(100):
+#     page +=1
+#     # Site inside metacritic listing "Game Releases by Score"
+#     # url = 'https://www.metacritic.com/browse/games/score/metascore/all/all/filtered?page=' + str(page)
+#     url = f'https://www.metacritic.com/browse/game/{platform}/all/all-time/metascore/?releaseYearMin=1958&releaseYearMax=2024&platform=ps4&page={page}'
+#
+#     user_agent = {'User-agent': 'Mozilla/5.0'}
+#     response = requests.get(url, headers=user_agent)
+#     soup = BeautifulSoup(response.text, 'html.parser')
+#
+#     # Printing out current page
+#     print(50 * '=', "In page: ", page)
+#
+#     # Loop through all games in current page
+#     for game in soup.find_all('div', {'class': 'c-finderProductCard'}):
+#
+#         # Name
+#         game_name = game.text.split('\n')[0].split('. ')[-1]
+#         data_page['name'].append(game_name)
+#         data_page['rank'].append(game.text.split('\n')[0].split('. ')[0])
+#         data_page['platform'].append(platform)
+#         data_page['r-date'].append(extract_date_from_string(game.text))
+#         data_page['score'].append(game.text.split('\n')[-1].split(' Metascore')[0].split(' ')[-1])
+#
+#         name_nospaces =game_name.strip().replace(' ','-').lower()
+#         game_url = f'https://www.metacritic.com/game/{name_nospaces}/critic-reviews/?platform=playstation-4'
+#
+#         user_agent = {'User-agent': 'Mozilla/5.0'}
+#         response_game = requests.get(game_url, headers=user_agent)
+#         game_data = BeautifulSoup(response_game.text, 'html.parser')
+#         soup_game = BeautifulSoup(response_game.text, 'html.parser')
+#
+#
+#         print(data_page)
+#         for game in soup_game.find_all('div', {'class': 'tagstack'}):
+#             print(game)
+#             data_page['r-date'].append(extract_date_from_string(game.text))
 #         # Release date
 #         data_page['r-date'].append(game.select('div.clamp-details span')[2].text)
 #
