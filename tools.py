@@ -35,5 +35,8 @@ def correct_data(df):
         else:
             # Keep the original row if no extra reviews found
             corrected_rows.append(row.to_dict())
+    df = pd.DataFrame(corrected_rows)
+    return df
 
-    return pd.DataFrame(corrected_rows)
+def reviews_per_year(df):
+    rev_yr_reviewer = df.groupby('')
